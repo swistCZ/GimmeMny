@@ -20,6 +20,29 @@ Přenosné zařízení s e-paper displejem pro generování platebních QR kód�
 - **Klávesnice**: Membránová maticová klávesnice `4x4`
 - **Napájení**: LiPo baterie
 
+### Zapojení klávesnice
+
+Klávesnice 4x4 má 8 pinů. Pro správnou funkci je nutné ji propojit s ESP32 podle následující tabulky. Na klávesnici z LaskaKitu (viz. nákres níže) jsou piny obvykle očíslovány 1-8. Předpokládáme, že piny 1-4 odpovídají řádkům (R1-R4) a piny 5-8 odpovídají sloupcům (C1-C4), jak je znázorněno na schématu.
+
+**Zapojení pinů klávesnice k ESP32:**
+
+| Klávesnice (Pin na modulu) | Klávesnice (Funkce) | ESP32 GPIO |
+| :------------------------- | :------------------ | :--------- |
+| Pin 1                      | ROW 0 (R1)          | GPIO 32    |
+| Pin 2                      | ROW 1 (R2)          | GPIO 33    |
+| Pin 3                      | ROW 2 (R3)          | GPIO 25    |
+| Pin 4                      | ROW 3 (R4)          | GPIO 26    |
+| Pin 5                      | COL 0 (C1)          | GPIO 27    |
+| Pin 6                      | COL 1 (C2)          | GPIO 14    |
+| Pin 7                      | COL 2 (C3)          | GPIO 12    |
+| Pin 8                      | COL 3 (C4)          | GPIO 13    |
+
+![4x4 Keypad Wiring Diagram](https://cdn.myshoptet.com/usr/www.laskakit.cz/user/documents/upload/4x4%20keyboard.bmp)
+
+**Důležité:**
+*   Vždy zkontrolujte, zda se piny na vaší konkrétní klávesnici shodují s předpokládaným pořadím.
+*   Piny řádků (ROW 0-3) jsou nakonfigurovány pro probuzení ESP32 z režimu Deep Sleep.
+
 ## Konfigurace
 
 Veškeré nastavení se provádí v souboru `data/config.ini`. Po úpravě je nutné nahrát souborový systém do zařízení.

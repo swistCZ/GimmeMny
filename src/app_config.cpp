@@ -46,9 +46,9 @@ AppConfig defaultConfig() {
   cfg.pay.x_ss = "";
   cfg.pay.x_ks = "";
 
-  cfg.ui.title = "Kalkuvacka";
+  cfg.ui.title = "GimmeMny";
   cfg.ui.translit = true;
-  cfg.ui.sleep_timeout_s = 60;
+  cfg.ui.sleep_timeout_s = 150;
 
   return cfg;
 }
