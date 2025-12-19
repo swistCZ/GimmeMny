@@ -3,14 +3,12 @@
 // ----------------------
 // ePaper (SPI) piny
 // ----------------------
-// Pozn.: Konkrétní SPI piny (SCK/MOSI) bere knihovna z ESP32 HW SPI.
-// Pokud používáš VSPI default: SCK=18, MOSI=23.
-
-// Tyhle 4 piny si nejspíš budeš upravovat podle PCB:
-static constexpr int PIN_EPD_CS   = 5;
-static constexpr int PIN_EPD_DC   = 17;
-static constexpr int PIN_EPD_RST  = 16;
-static constexpr int PIN_EPD_BUSY = 4;
+// LaskaKit ESPink v3.5 pinout
+// HW SPI pro ESP32-S3: MOSI=11, SCK=12
+static constexpr int PIN_EPD_CS   = 10;
+static constexpr int PIN_EPD_DC   = 48;
+static constexpr int PIN_EPD_RST  = 45;
+static constexpr int PIN_EPD_BUSY = 38;
 
 // ----------------------
 // 4x4 matice klávesnice
@@ -31,16 +29,16 @@ static constexpr int PIN_EPD_BUSY = 4;
 static constexpr int KEYPAD_ROWS = 4;
 static constexpr int KEYPAD_COLS = 4;
 
-// Uprav podle reálného zapojení (GPIO, které nejsou problematické při bootu)
-static constexpr int PIN_KEYPAD_ROW_0 = 32;
-static constexpr int PIN_KEYPAD_ROW_1 = 33;
-static constexpr int PIN_KEYPAD_ROW_2 = 25;
-static constexpr int PIN_KEYPAD_ROW_3 = 26;
+// LaskaKit ESPink v3.5 - piny upravené podle dostupnosti
+static constexpr int PIN_KEYPAD_ROW_0 = 4;
+static constexpr int PIN_KEYPAD_ROW_1 = 5;
+static constexpr int PIN_KEYPAD_ROW_2 = 6;
+static constexpr int PIN_KEYPAD_ROW_3 = 7;
 
-static constexpr int PIN_KEYPAD_COL_0 = 27;
-static constexpr int PIN_KEYPAD_COL_1 = 14;
-static constexpr int PIN_KEYPAD_COL_2 = 12;
-static constexpr int PIN_KEYPAD_COL_3 = 13;
+static constexpr int PIN_KEYPAD_COL_0 = 15;
+static constexpr int PIN_KEYPAD_COL_1 = 16;
+static constexpr int PIN_KEYPAD_COL_2 = 17;
+static constexpr int PIN_KEYPAD_COL_3 = 19;
 
 // ----------------------
 // Měření napětí baterie
