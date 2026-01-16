@@ -2,3 +2,9 @@
 .vscode/
 *.code-workspace
 .DS_Store
+
+# Testovací složky
+ESPinkTest/
+
+# Systémové soubory
+packages.microsoft.gpg

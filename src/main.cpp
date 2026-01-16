@@ -13,7 +13,7 @@
 #if APP_DISPLAY_GDEY0154D67
   #include <GxEPD2_BW.h>
   // GDEY0154D67 (1.54" 200x200) - SSD1681
-  #include <GxEPD2_154_GDEY0154D67.h>
+
   using DisplayDriver = GxEPD2_BW<GxEPD2_154_GDEY0154D67, GxEPD2_154_GDEY0154D67::HEIGHT>;
   DisplayDriver display(GxEPD2_154_GDEY0154D67(PIN_EPD_CS, PIN_EPD_DC, PIN_EPD_RST, PIN_EPD_BUSY));
 #else
@@ -54,8 +54,8 @@ static int64_t amountToCents() {
     if (c < '0' || c > '9') continue;
     v = v * 10 + (c - '0');
   }
-  // vždy haléře
-  return v;
+  // Změna: zadané číslo jsou koruny, převedeme na haléře
+  return v * 100;
 }
 
 static String formatAmountForUi() {
@@ -101,32 +101,46 @@ static void renderEnterScreen() {
 
     display.setTextColor(GxEPD_BLACK);
 
-    // Zobrazíme mezisoučet nahoře, pokud nějaký je
-    if (running_total_cents > 0) {
-      display.setTextSize(2);
-      display.setCursor(0, 22);
-      String totalStr = formatAmountCz(running_total_cents);
-      display.print("Mezisoucet: " + totalStr);
-    } else {
-      display.setTextSize(2);
-      display.setCursor(0, 22);
-      display.print(g_cfg.ui.title);
-    }
+    // --- Úprava pozic textu ---
+    // Zobrazíme mezisoučet nahoře, nebo titul, vycentrováno
+    String topText;
+    int16_t x1, y1;
+    uint16_t w, h;
 
-    // Zobrazení stavu baterie v pravém horním rohu
+    display.setTextSize(2);
+    if (running_total_cents > 0) {
+      topText = "Suma: " + formatAmountCz(running_total_cents);
+    } else {
+      if (g_cfg.ui.title == "GimmeMny") { // Pokud je defaultní název, nahradíme ho
+        topText = "Rzacze";
+      } else {
+        topText = g_cfg.ui.title;
+      }
+    }
+    display.getTextBounds(topText, 0, 0, &x1, &y1, &w, &h);
+    display.setCursor((display.width() - w) / 2, 5 + h); // Vycentrováno, 5px od horního okraje
+    display.print(topText);
+
+    // Zobrazení stavu baterie v pravém horním rohu (mělo by fungovat)
     display.setTextSize(1);
-    display.setCursor(display.width() - 40, 5); // Pozice vpravo nahoře
+    display.setCursor(display.width() - 40, 5);
     display.print(String(getBatteryPercentage()) + "%");
 
+    // Hlavní částka - vycentrováno
     display.setTextSize(3);
-    display.setCursor(0, 80);
-    display.print(formatAmountForUi());
-    display.print(" ");
-    display.print(g_cfg.pay.cc.length() ? g_cfg.pay.cc : "CZK");
+    String amountStr = formatAmountForUi() + " " + (g_cfg.pay.cc.length() ? g_cfg.pay.cc : "CZK");
+    display.getTextBounds(amountStr, 0, 0, &x1, &y1, &w, &h);
+    // Vertikálně centrováno uprostřed dostupné plochy (pod topText, nad helpText)
+    display.setCursor((display.width() - w) / 2, display.height() / 2 + h / 2);
+    display.print(amountStr);
 
+    // Nápověda kláves - dole, vycentrováno
     display.setTextSize(1);
-    display.setCursor(0, 120);
-    display.print("A=+ B== C=RST *=DEL #=QR");
+    String helpText = "A=+ B== C=RST *=DEL #=QR";
+    display.getTextBounds(helpText, 0, 0, &x1, &y1, &w, &h);
+    display.setCursor((display.width() - w) / 2, display.height() - 5 - h); // Vycentrováno, 5px od spodního okraje
+    display.print(helpText);
+    // --- Konec úpravy pozic textu ---
 
   } while (display.nextPage());
 }
@@ -153,28 +167,60 @@ static void renderQrScreen(const String& spayd, const String& amountUi) {
 
   display.setFullWindow();
   display.firstPage();
-  do {
-    display.fillScreen(GxEPD_WHITE);
-    display.setTextColor(GxEPD_BLACK);
-
-    display.setTextSize(2);
-    display.setCursor(0, 22);
-    display.print(amountUi);
-    display.print(" ");
-    display.print(g_cfg.pay.cc.length() ? g_cfg.pay.cc : "CZK");
-
-    // Zobrazení stavu baterie v pravém horním rohu (přepočítáno na otočený displej)
-    // Pokud je displej otočen o 180 (rotation 2), pak (display.width() - X, Y) se stane (X, display.height() - Y)
-    display.setTextSize(1);
-    display.setCursor(display.width() - 40, 5); // Pozice pro zobrazení na displeji před rotací
-    display.print(String(getBatteryPercentage()) + "%");
-
-    display.setTextSize(1);
-    display.setCursor(0, display.height() - 10);
-    display.print("D=ZPET");
-
-  } while (display.nextPage());
-}
+        do {
+          display.fillScreen(GxEPD_WHITE);
+          display.setTextColor(GxEPD_BLACK);
+      
+          // --- Nová logika vykreslování s 10px okraji ---
+          const int top_margin_y = 10;    // Prostor pro horní řádek textu (částka, baterie)
+          const int bottom_margin_y = 10; // Prostor pro spodní řádek textu (D=ZPET)
+          const int available_space_for_qr = display.height() - top_margin_y - bottom_margin_y;
+      
+          // Vypočítáme velikost modulu QR kódu
+          int module_size = available_space_for_qr / qrcode.size;
+          if (module_size < 1) module_size = 1;
+      
+          int qr_display_width = qrcode.size * module_size;
+          int x_offset = (display.width() - qr_display_width) / 2;
+          int y_offset_qr = top_margin_y + (available_space_for_qr - qr_display_width) / 2;
+      
+          // Vykreslení QR kódu
+          for (int y = 0; y < qrcode.size; y++) {
+            for (int x = 0; x < qrcode.size; x++) {
+              if (qrcode_getModule(&qrcode, x, y)) {
+                display.fillRect(x_offset + x * module_size, y_offset_qr + y * module_size, module_size, module_size, GxEPD_BLACK);
+              }
+            }
+          }
+      
+          // --- Pozice textu ---
+          int16_t x1, y1;
+          uint16_t w, h; // height of current text
+      
+          // Částka pro QR - umístíme vlevo nahoře, vertikálně vycentrováno v top_margin_y
+          display.setTextSize(1);
+          String amountCurrency = amountUi + " " + (g_cfg.pay.cc.length() ? g_cfg.pay.cc : "CZK");
+          display.getTextBounds(amountCurrency, 0, 0, &x1, &y1, &w, &h);
+    uint16_t y_pos_top_text = (top_margin_y - h) / 2; // Vertikálně vycentrovat v rámci horního okraje
+    display.setCursor((display.width() - w) / 2, y_pos_top_text); // Horizontálně vycentrovat
+    display.print(amountCurrency);
+      
+          // Zobrazení stavu baterie vpravo nahoře, vertikálně vycentrováno v top_margin_y
+          display.setTextSize(1);
+          // Reuse 'h' for height, or recalculate if font changes
+          display.setCursor(display.width() - 40, y_pos_top_text); // Stejná Y pozice jako částka
+          display.print(String(getBatteryPercentage()) + "%");
+      
+          // Nápověda kláves (D=ZPET) - vycentrováno dole, vertikálně vycentrováno v bottom_margin_y
+          display.setTextSize(1);
+          String backText = "D=ZPET";
+          display.getTextBounds(backText, 0, 0, &x1, &y1, &w, &h);
+          uint16_t y_pos_bottom_text = display.height() - bottom_margin_y + (bottom_margin_y - h) / 2; // Y pozice pro spodní text
+          display.setCursor((display.width() - w) / 2, y_pos_bottom_text);
+          display.print(backText);
+          // --- Konec nové logiky ---
+      
+        } while (display.nextPage());}
 
 enum class UiState {
   EnterAmount,
@@ -188,7 +234,7 @@ static String g_lastSpayd;
 static unsigned long last_key_press_time = 0;
 
 static void goEnter() {
-  display.setRotation(0);
+  display.setRotation(1);
   g_state = UiState::EnterAmount;
   amountDigits = "";
   running_total_cents = 0;
@@ -197,7 +243,7 @@ static void goEnter() {
 }
 
 static void goQr() {
-  display.setRotation(2); // otočíme o 180°
+  display.setRotation(3); // otočíme o 270° (o 180° víc než základní rotace)
   int64_t cents = amountToCents();
   String spayd = buildSpayd(g_cfg, cents);
   g_lastSpayd = spayd;
@@ -219,6 +265,17 @@ static void ensureConfigFile() {
 void setup() {
   Serial.begin(115200);
   delay(200);
+
+  // --- FIX: Přidána inicializace pro LaskaKit ESPink ---
+  // 1. Zapnutí napájení displeje
+  pinMode(PIN_EPD_POWER, OUTPUT);
+  digitalWrite(PIN_EPD_POWER, HIGH);
+  delay(10); // krátká pauza pro stabilizaci napájení
+
+  // 2. Explicitní nastavení SPI pinů
+  // MISO není pro displej potřeba (write-only), CS pin řídí knihovna GxEPD2
+  SPI.begin(PIN_EPD_SCK, -1, PIN_EPD_MOSI, -1);
+  // --- KONEC FIXu ---
 
   analogReadResolution(12); // Ujistíme se, že je 12-bit
 
@@ -295,9 +352,9 @@ static void onKeyEnter(char k) {
 
   if (k == 'B') { // = (rovná se)
     running_total_cents += amountToCents();
-    // Převedeme celkový výsledek na string, aby se zobrazil jako hlavní částka
+    // Převedeme celkový výsledek na string, ale jako koruny, ne haléře
     char buf[32];
-    snprintf(buf, sizeof(buf), "%lld", (long long)running_total_cents);
+    snprintf(buf, sizeof(buf), "%lld", (long long)(running_total_cents / 100));
     amountDigits = buf;
     
     // vynulujeme mezisoučet a označíme, že zobrazujeme konečný výsledek

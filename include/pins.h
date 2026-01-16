@@ -4,11 +4,15 @@
 // ePaper (SPI) piny
 // ----------------------
 // LaskaKit ESPink v3.5 pinout
-// HW SPI pro ESP32-S3: MOSI=11, SCK=12
+// HW SPI pro ESP32-S3:
+static constexpr int PIN_EPD_SCK  = 12;
+static constexpr int PIN_EPD_MOSI = 11;
 static constexpr int PIN_EPD_CS   = 10;
 static constexpr int PIN_EPD_DC   = 48;
 static constexpr int PIN_EPD_RST  = 45;
 static constexpr int PIN_EPD_BUSY = 38;
+// Pin pro zapnutí napájení displeje
+static constexpr int PIN_EPD_POWER = 47;
 
 // ----------------------
 // 4x4 matice klávesnice
