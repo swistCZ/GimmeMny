@@ -379,43 +379,91 @@ static void onKeyQr(char k) {
   }
 }
 
+static void enterSleepMode() {
+  Serial.println("Performing full refresh and going to deep sleep...");
+  
+  // 1. Cyklus plného obnovení pro zamezení ghostingu
+  display.setFullWindow();
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_BLACK);
+  } while (display.nextPage());
+  
+  // 2. Vyčištění obrazovky na bílou pro "čistý" stav
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE);
+  } while (display.nextPage());
+
+  // 3. Vypnutí displeje a uspání
+  display.powerOff();
+  esp_deep_sleep_start();
+}
+
+// Nové proměnné pro detekci dlouhého stisku
+static unsigned long hold_c_start_time = 0;
+static bool is_c_held = false;
+static const unsigned long LONG_PRESS_C_DURATION = 2000; // 2 sekundy
+
 void loop() {
-  char k = keypad.getKey();
-  if (k) {
-    last_key_press_time = millis(); // Reset timer on key press
-    Serial.print("Key: ");
-    Serial.println(k);
+    // Nová, event-driven logika klávesnice pro detekci dlouhého stisku
+    if (keypad.getKeys()) {
+        last_key_press_time = millis(); // Resetujeme časovač nečinnosti při jakékoliv aktivitě klávesnice
 
-    switch (g_state) {
-      case UiState::EnterAmount:
-        onKeyEnter(k);
-        break;
-      case UiState::ShowQr:
-        onKeyQr(k);
-        break;
+        for (int i = 0; i < LIST_MAX; i++) {
+            if (keypad.key[i].stateChanged) {
+                char k = keypad.key[i].kchar;
+                Serial.print("Key: ");
+                Serial.print(k);
+                Serial.print(" state: ");
+                Serial.println(keypad.key[i].kstate);
+
+                switch (keypad.key[i].kstate) {
+                    case PRESSED:
+                        if (k == 'C') {
+                            hold_c_start_time = millis();
+                            is_c_held = true;
+                        } else {
+                            // Ostatní klávesy reagují ihned na stisk
+                            switch (g_state) {
+                                case UiState::EnterAmount: onKeyEnter(k); break;
+                                case UiState::ShowQr: onKeyQr(k); break;
+                            }
+                        }
+                        break;
+                    
+                    case HOLD:
+                        if (k == 'C' && is_c_held) {
+                            if (millis() - hold_c_start_time > LONG_PRESS_C_DURATION) {
+                                is_c_held = false; // Zabráníme opakovanému spuštění
+                                enterSleepMode();
+                            }
+                        }
+                        break;
+
+                    case RELEASED:
+                        if (k == 'C' && is_c_held) {
+                            // Pokud byla klávesa C uvolněna dříve, než uplynul čas pro dlouhý stisk,
+                            // provedeme původní akci (reset).
+                            is_c_held = false;
+                            // Akce pro krátký stisk 'C' je reset
+                            if (g_state == UiState::EnterAmount) {
+                              onKeyEnter('C');
+                            }
+                        }
+                        break;
+                    
+                    case IDLE:
+                        break;
+                }
+            }
+        }
     }
-  } else {
-    // Zkontrolujeme nečinnost a případně uspíme
+
+    // Kontrola nečinnosti zůstává
     if (g_cfg.ui.sleep_timeout_s > 0 && millis() - last_key_press_time > (unsigned long)g_cfg.ui.sleep_timeout_s * 1000) {
-      Serial.println("Performing full refresh and going to deep sleep...");
-      
-      // 1. Cyklus plného obnovení pro zamezení ghostingu
-      display.setFullWindow();
-      display.firstPage();
-      do {
-        display.fillScreen(GxEPD_BLACK);
-      } while (display.nextPage());
-      
-      // 2. Vyčištění obrazovky na bílou pro "čistý" stav
-      display.firstPage();
-      do {
-        display.fillScreen(GxEPD_WHITE);
-      } while (display.nextPage());
-
-      // 3. Vypnutí displeje a uspání
-      display.powerOff();
-      esp_deep_sleep_start();
+        enterSleepMode();
     }
-  }
-  delay(5); // Krátká pauza pro zamezení vytížení procesoru
+  
+    delay(10); // Lehce zvýšíme delay pro stabilitu event-driven smyčky
 }

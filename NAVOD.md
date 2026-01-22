@@ -5,7 +5,7 @@ Toto zařízení slouží k jednoduchému generování platebních QR kódů (st
 ## Ovládání
 
 ### Zadávání částky a kalkulačka
-- **Číslice `0-9`**: Zadávání aktuální částky. Částka se zadává v haléřích (např. pro 123.45 Kč zadejte `12345`).
+- **Číslice `0-9`**: Zadávání aktuální částky. Částka se zadává v celých korunách (např. pro 123 Kč zadejte `123`).
 - **Tlačítko `*` (hvězdička)**: Smaže poslední zadanou číslici (funkce Backspace).
 - **Tlačítko `A`**: Přičte aktuálně zadanou částku k mezisoučtu (funkce **`+`**). Na displeji se zobrazí mezisoučet a můžete zadat další položku.
 - **Tlačítko `B`**: Zobrazí konečný součet všech položek (funkce **`=`**). Výsledek zůstane na displeji.

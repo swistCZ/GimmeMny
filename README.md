@@ -17,31 +17,31 @@ Přenosné zařízení s e-paper displejem pro generování platebních QR kód�
 
 - **Řídicí deska**: `ESP32 Dev Kit` (nebo kompatibilní)
 - **Displej**: `GDEY0154D67` (1.54" 200x200, černobílý e-paper)
-- **Klávesnice**: Membránová maticová klávesnice `4x4`
+- **Klávesnice**: Membránová maticová klávesnice 4x4 (např. z GME.cz)
 - **Napájení**: LiPo baterie
 
 ### Zapojení klávesnice
 
-Klávesnice 4x4 má 8 pinů. Následující tabulka ukazuje doporučené zapojení pro desku **LaskaKit ESPink v3.5** podle dostupných pinů.
+Klávesnice je **membránová maticová klávesnice 4x4 (např. z GME.cz)** s vysokým kontaktním odporem (až 500 Ohmů).
 
-**Zapojení pinů klávesnice k ESP32 (pro v3.5):**
+**Zapojení pinů klávesnice k ESP32 (pro LaskaKit ESPink v3.5):**
 
-| Klávesnice (Funkce) | ESP32 GPIO |
-| :------------------ | :--------- |
-| Řádek 0 (R1)        | GPIO 4     |
-| Řádek 1 (R2)        | GPIO 5     |
-| Řádek 2 (R3)        | GPIO 6     |
-| Řádek 3 (R4)        | GPIO 7     |
-| Sloupec 0 (C1)      | GPIO 15    |
-| Sloupec 1 (C2)      | GPIO 16    |
-| Sloupec 2 (C3)      | GPIO 17    |
-| Sloupec 3 (C4)      | GPIO 19    |
+Následující tabulka ukazuje, jak by měly být piny na ribbon kabelu klávesnice zapojeny k ESP32 GPIO pinům. Toto mapování odpovídá kódu (`src/main.cpp`).
 
-![4x4 Keypad Wiring Diagram](https://cdn.myshoptet.com/usr/www.laskakit.cz/user/documents/upload/4x4%20keyboard.bmp)
+| Klávesnice Ribbon Pin | Funkce (Fyzický sloupec/řádek) | ESP32 GPIO |
+| :-------------------- | :------------------------------ | :--------- |
+| Pin 8                 | Řádek 1                         | GPIO 4     |
+| Pin 7                 | Řádek 2                         | GPIO 5     |
+| Pin 6                 | Řádek 3                         | GPIO 6     |
+| Pin 5                 | Řádek 4                         | GPIO 7     |
+| Pin 4                 | Sloupec 1                       | GPIO 19    |
+| Pin 3                 | Sloupec 2                       | GPIO 16    |
+| Pin 2                 | Sloupec 3                       | GPIO 17    |
+| Pin 1                 | Sloupec 4                       | GPIO 15    |
 
-**Důležité:**
-*   Zapojení platí pro kód upravený pro LaskaKit ESPink v3.5.
-*   Piny řádků (ROW 0-3) jsou nakonfigurovány pro probuzení ESP32 z režimu Deep Sleep.
+**Důležité poznámky k funkci klávesnice:**
+*   Vzhledem k vysokému kontaktnímu odporu klávesnice (až 500 Ohmů) je **nutné přidat externí pull-up rezistory** na každý sloupcový pin (tj. na GPIO 19, 16, 17, 15). Doporučená hodnota rezistorů je 1KΩ až 10KΩ. Bez těchto externích rezistorů klávesnice nemusí spolehlivě fungovat.
+*   Piny řádků (GPIO 4-7) jsou nakonfigurovány pro probuzení ESP32 z režimu Deep Sleep.
 
 ## Konfigurace
 
