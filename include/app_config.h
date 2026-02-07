@@ -37,3 +37,15 @@ bool saveConfigToFs(const AppConfig& cfg);
 
 // Pomocná funkce pro výpis configu do Serial (debug).
 void printConfig(const AppConfig& cfg, Stream& out);
+
+// --- UI texty a konstanty ---
+// Centralizujeme texty pro snazší úpravu a budoucí překlady
+namespace UI_STRINGS {
+  constexpr const char* HELP_TEXT_ENTER_AMOUNT = "A=+ B== C=RST *=DEL #=QR";
+  constexpr const char* HELP_TEXT_QR = "D=ZPET";
+  constexpr const char* DEFAULT_TITLE = "GimmeMny";
+  constexpr const char* RUNNING_TOTAL_PREFIX = "Suma: ";
+  constexpr const char* BATTERY_PERCENT_SUFFIX = "%";
+  constexpr const char* DEFAULT_CURRENCY = "CZK";
+}
+

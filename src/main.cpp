@@ -86,13 +86,66 @@ static int readBatteryMv() {
 }
 
 static int getBatteryPercentage() {
+  // Vylepšené měření baterie pomocí vyhledávací tabulky pro LiPo 3.7V
+  // Zdroj: https://blog.ampow.com/lipo-voltage-chart/
+  const int voltages[] = { 3270, 3610, 3690, 3710, 3730, 3750, 3770, 3790, 3800, 3820, 3840, 3850, 3870, 3910, 3950, 3980, 4020, 4080, 4110, 4150, 4200 };
+  const int percentages[] = { 0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100 };
+  const int num_levels = sizeof(voltages) / sizeof(voltages[0]);
+
   int mv = readBatteryMv();
-  // Mapování napětí na procenta
-  int percentage = map(mv, BATTERY_EMPTY_MV, BATTERY_FULL_MV, 0, 100);
-  return constrain(percentage, 0, 100);
+
+  if (mv <= voltages[0]) {
+    return 0;
+  }
+  if (mv >= voltages[num_levels - 1]) {
+    return 100;
+  }
+
+  // Najdeme správný interval v tabulce
+  int i = 0;
+  while (mv > voltages[i]) {
+    i++;
+  }
+
+  // Lineární interpolace mezi dvěma známými body
+  int V1 = voltages[i - 1];
+  int P1 = percentages[i - 1];
+  int V2 = voltages[i];
+  int P2 = percentages[i];
+  return P1 + ( (float)(mv - V1) / (V2 - V1) ) * (P2 - P1);
 }
 
 // ---------- UI rendering ----------
+static void updateAmountDisplay() {
+  // Define a fixed window for the amount. This should be large enough to contain
+  // the longest possible amount string and will be cleared and redrawn on each key press.
+  // Y position and height are chosen to cover the area where the amount is displayed.
+  const int16_t x = 0;
+  const int16_t y = 80;
+  const int16_t w = 200;
+  const int16_t h_partial = 60;
+
+  display.setPartialWindow(x, y, w, h_partial);
+  
+  display.firstPage();
+  do {
+    // Clear the partial window area
+    display.fillScreen(GxEPD_WHITE);
+
+    // Draw the updated amount string (code adapted from renderEnterScreen)
+    display.setTextColor(GxEPD_BLACK);
+    display.setTextSize(3);
+    String amountStr = formatAmountForUi() + " " + (g_cfg.pay.cc.length() ? g_cfg.pay.cc : UI_STRINGS::DEFAULT_CURRENCY);
+    int16_t x1_bounds, y1_bounds;
+    uint16_t w_text, h_text;
+    display.getTextBounds(amountStr, 0, 0, &x1_bounds, &y1_bounds, &w_text, &h_text);
+
+    // Set cursor position relative to the full screen. The library handles clipping.
+    display.setCursor((display.width() - w_text) / 2, display.height() / 2 + h_text / 2);
+    display.print(amountStr);
+  } while (display.nextPage());
+}
+
 static void renderEnterScreen() {
   display.setFullWindow();
   display.firstPage();
@@ -109,13 +162,9 @@ static void renderEnterScreen() {
 
     display.setTextSize(2);
     if (running_total_cents > 0) {
-      topText = "Suma: " + formatAmountCz(running_total_cents);
+      topText = String(UI_STRINGS::RUNNING_TOTAL_PREFIX) + formatAmountCz(running_total_cents);
     } else {
-      if (g_cfg.ui.title == "GimmeMny") { // Pokud je defaultní název, nahradíme ho
-        topText = "Rzacze";
-      } else {
-        topText = g_cfg.ui.title;
-      }
+      topText = g_cfg.ui.title;
     }
     display.getTextBounds(topText, 0, 0, &x1, &y1, &w, &h);
     display.setCursor((display.width() - w) / 2, 5 + h); // Vycentrováno, 5px od horního okraje
@@ -124,11 +173,11 @@ static void renderEnterScreen() {
     // Zobrazení stavu baterie v pravém horním rohu (mělo by fungovat)
     display.setTextSize(1);
     display.setCursor(display.width() - 40, 5);
-    display.print(String(getBatteryPercentage()) + "%");
+    display.print(String(getBatteryPercentage()) + UI_STRINGS::BATTERY_PERCENT_SUFFIX);
 
     // Hlavní částka - vycentrováno
     display.setTextSize(3);
-    String amountStr = formatAmountForUi() + " " + (g_cfg.pay.cc.length() ? g_cfg.pay.cc : "CZK");
+    String amountStr = formatAmountForUi() + " " + (g_cfg.pay.cc.length() ? g_cfg.pay.cc : UI_STRINGS::DEFAULT_CURRENCY);
     display.getTextBounds(amountStr, 0, 0, &x1, &y1, &w, &h);
     // Vertikálně centrováno uprostřed dostupné plochy (pod topText, nad helpText)
     display.setCursor((display.width() - w) / 2, display.height() / 2 + h / 2);
@@ -136,7 +185,7 @@ static void renderEnterScreen() {
 
     // Nápověda kláves - dole, vycentrováno
     display.setTextSize(1);
-    String helpText = "A=+ B== C=RST *=DEL #=QR";
+    String helpText = UI_STRINGS::HELP_TEXT_ENTER_AMOUNT;
     display.getTextBounds(helpText, 0, 0, &x1, &y1, &w, &h);
     display.setCursor((display.width() - w) / 2, display.height() - 5 - h); // Vycentrováno, 5px od spodního okraje
     display.print(helpText);
@@ -199,7 +248,7 @@ static void renderQrScreen(const String& spayd, const String& amountUi) {
       
           // Částka pro QR - umístíme vlevo nahoře, vertikálně vycentrováno v top_margin_y
           display.setTextSize(1);
-          String amountCurrency = amountUi + " " + (g_cfg.pay.cc.length() ? g_cfg.pay.cc : "CZK");
+          String amountCurrency = amountUi + " " + (g_cfg.pay.cc.length() ? g_cfg.pay.cc : UI_STRINGS::DEFAULT_CURRENCY);
           display.getTextBounds(amountCurrency, 0, 0, &x1, &y1, &w, &h);
     uint16_t y_pos_top_text = (top_margin_y - h) / 2; // Vertikálně vycentrovat v rámci horního okraje
     display.setCursor((display.width() - w) / 2, y_pos_top_text); // Horizontálně vycentrovat
@@ -209,11 +258,11 @@ static void renderQrScreen(const String& spayd, const String& amountUi) {
           display.setTextSize(1);
           // Reuse 'h' for height, or recalculate if font changes
           display.setCursor(display.width() - 40, y_pos_top_text); // Stejná Y pozice jako částka
-          display.print(String(getBatteryPercentage()) + "%");
+          display.print(String(getBatteryPercentage()) + UI_STRINGS::BATTERY_PERCENT_SUFFIX);
       
           // Nápověda kláves (D=ZPET) - vycentrováno dole, vertikálně vycentrováno v bottom_margin_y
           display.setTextSize(1);
-          String backText = "D=ZPET";
+          String backText = UI_STRINGS::HELP_TEXT_QR;
           display.getTextBounds(backText, 0, 0, &x1, &y1, &w, &h);
           uint16_t y_pos_bottom_text = display.height() - bottom_margin_y + (bottom_margin_y - h) / 2; // Y pozice pro spodní text
           display.setCursor((display.width() - w) / 2, y_pos_bottom_text);
@@ -326,7 +375,7 @@ static void onKeyEnter(char k) {
     if (amountDigits.length() < 12) {
       amountDigits += k;
     }
-    renderEnterScreen();
+    updateAmountDisplay(); // Rychlý refresh
     return;
   }
 
@@ -336,7 +385,7 @@ static void onKeyEnter(char k) {
     if (amountDigits.length() > 0) {
       amountDigits.remove(amountDigits.length() - 1);
     }
-    renderEnterScreen();
+    updateAmountDisplay(); // Rychlý refresh
     return;
   }
 
@@ -408,30 +457,7 @@ static unsigned long hold_c_start_time = 0;
 static bool is_c_held = false;
 static const unsigned long LONG_PRESS_C_DURATION = 2000; // 2 sekundy
 
-void loop() {
-    // Pokud probíhá odpočet pro deep sleep, ignorujeme vše ostatní
-    if (g_state == UiState::PreparingForDeepSleep) {
-      if (millis() - deep_sleep_countdown_start_time > DEEP_SLEEP_CLEAN_DURATION) {
-        Serial.println("Countdown finished. Forcing row pins LOW and going to sleep.");
-        
-        // Vynutíme nízkou úroveň na řádkových (probouzecích) pinech, abychom zabránili okamžitému probuzení
-        pinMode(PIN_KEYPAD_ROW_0, OUTPUT);
-        digitalWrite(PIN_KEYPAD_ROW_0, LOW);
-        pinMode(PIN_KEYPAD_ROW_1, OUTPUT);
-        digitalWrite(PIN_KEYPAD_ROW_1, LOW);
-        pinMode(PIN_KEYPAD_ROW_2, OUTPUT);
-        digitalWrite(PIN_KEYPAD_ROW_2, LOW);
-        pinMode(PIN_KEYPAD_ROW_3, OUTPUT);
-        digitalWrite(PIN_KEYPAD_ROW_3, LOW);
-
-        display.powerOff();
-        esp_deep_sleep_start();
-      }
-      delay(100); // Během čekání není potřeba smyčku točit tak rychle
-      return;
-    }
-
-    // Nová, event-driven logika klávesnice pro detekci dlouhého stisku
+static void handleKeypad() {
     if (keypad.getKeys()) {
         last_key_press_time = millis(); // Resetujeme časovač nečinnosti při jakékoliv aktivitě klávesnice
 
@@ -476,6 +502,32 @@ void loop() {
             }
         }
     }
+}
+
+void loop() {
+    // Pokud probíhá odpočet pro deep sleep, ignorujeme vše ostatní
+    if (g_state == UiState::PreparingForDeepSleep) {
+      if (millis() - deep_sleep_countdown_start_time > DEEP_SLEEP_CLEAN_DURATION) {
+        Serial.println("Countdown finished. Forcing row pins LOW and going to sleep.");
+        
+        // Vynutíme nízkou úroveň na řádkových (probouzecích) pinech, abychom zabránili okamžitému probuzení
+        pinMode(PIN_KEYPAD_ROW_0, OUTPUT);
+        digitalWrite(PIN_KEYPAD_ROW_0, LOW);
+        pinMode(PIN_KEYPAD_ROW_1, OUTPUT);
+        digitalWrite(PIN_KEYPAD_ROW_1, LOW);
+        pinMode(PIN_KEYPAD_ROW_2, OUTPUT);
+        digitalWrite(PIN_KEYPAD_ROW_2, LOW);
+        pinMode(PIN_KEYPAD_ROW_3, OUTPUT);
+        digitalWrite(PIN_KEYPAD_ROW_3, LOW);
+
+        display.powerOff();
+        esp_deep_sleep_start();
+      }
+      delay(100); // Během čekání není potřeba smyčku točit tak rychle
+      return;
+    }
+
+    handleKeypad();
 
     // Kontrola nečinnosti (pokud nejsme v procesu vypínání)
     if (g_cfg.ui.sleep_timeout_s > 0 && millis() - last_key_press_time > (unsigned long)g_cfg.ui.sleep_timeout_s * 1000) {

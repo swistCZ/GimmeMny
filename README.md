@@ -89,7 +89,7 @@ Projekt je postaven na [PlatformIO](https://platformio.org/).
 
 | Klávesa     | Režim zadávání             | Režim zobrazení QR          |
 | :---------- | :------------------------- | :-------------------------- |
-| **`0-9`**   | Zadávání částky (v haléřích) | -                           |
+| **`0-9`**   | Zadávání částky (v celých korunách) | -                           |
 | **`*`**     | Smazání posledního znaku   | -                           |
 | **`C`**     | Reset / Vynulování         | -                           |
 | **`A`**     | Přičtení k mezisoučtu (`+`)  | -                           |
