@@ -412,7 +412,18 @@ void loop() {
     // Pokud probíhá odpočet pro deep sleep, ignorujeme vše ostatní
     if (g_state == UiState::PreparingForDeepSleep) {
       if (millis() - deep_sleep_countdown_start_time > DEEP_SLEEP_CLEAN_DURATION) {
-        Serial.println("Countdown finished. Going to deep sleep now.");
+        Serial.println("Countdown finished. Forcing row pins LOW and going to sleep.");
+        
+        // Vynutíme nízkou úroveň na řádkových (probouzecích) pinech, abychom zabránili okamžitému probuzení
+        pinMode(PIN_KEYPAD_ROW_0, OUTPUT);
+        digitalWrite(PIN_KEYPAD_ROW_0, LOW);
+        pinMode(PIN_KEYPAD_ROW_1, OUTPUT);
+        digitalWrite(PIN_KEYPAD_ROW_1, LOW);
+        pinMode(PIN_KEYPAD_ROW_2, OUTPUT);
+        digitalWrite(PIN_KEYPAD_ROW_2, LOW);
+        pinMode(PIN_KEYPAD_ROW_3, OUTPUT);
+        digitalWrite(PIN_KEYPAD_ROW_3, LOW);
+
         display.powerOff();
         esp_deep_sleep_start();
       }
