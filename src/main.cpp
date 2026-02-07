@@ -270,7 +270,7 @@ void setup() {
   // 1. Zapnutí napájení displeje
   pinMode(PIN_EPD_POWER, OUTPUT);
   digitalWrite(PIN_EPD_POWER, HIGH);
-  delay(10); // krátká pauza pro stabilizaci napájení
+  delay(100); // krátká pauza pro stabilizaci napájení
 
   // 2. Explicitní nastavení SPI pinů
   // MISO není pro displej potřeba (write-only), CS pin řídí knihovna GxEPD2

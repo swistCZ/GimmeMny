@@ -33,16 +33,18 @@ static constexpr int PIN_EPD_POWER = 47;
 static constexpr int KEYPAD_ROWS = 4;
 static constexpr int KEYPAD_COLS = 4;
 
-// LaskaKit ESPink v3.5 - piny upravené podle dostupnosti
-static constexpr int PIN_KEYPAD_ROW_0 = 4;
-static constexpr int PIN_KEYPAD_ROW_1 = 5;
-static constexpr int PIN_KEYPAD_ROW_2 = 6;
-static constexpr int PIN_KEYPAD_ROW_3 = 7;
+// LaskaKit ESPink v3.5 - piny upravené podle funkčního zapojení
+// Pořadí řádků odpovídá fyzickému zapojení (shora dolů)
+static constexpr int PIN_KEYPAD_ROW_0 = 19; // Ribbon Pin 8
+static constexpr int PIN_KEYPAD_ROW_1 = 17; // Ribbon Pin 7
+static constexpr int PIN_KEYPAD_ROW_2 = 16; // Ribbon Pin 6
+static constexpr int PIN_KEYPAD_ROW_3 = 15; // Ribbon Pin 5
 
-static constexpr int PIN_KEYPAD_COL_0 = 15;
-static constexpr int PIN_KEYPAD_COL_1 = 16;
-static constexpr int PIN_KEYPAD_COL_2 = 17;
-static constexpr int PIN_KEYPAD_COL_3 = 19;
+// Pořadí sloupců je reverzní, aby odpovídalo matici `keys` v main.cpp
+static constexpr int PIN_KEYPAD_COL_0 = 7;  // Ribbon Pin 4
+static constexpr int PIN_KEYPAD_COL_1 = 6;  // Ribbon Pin 3
+static constexpr int PIN_KEYPAD_COL_2 = 5;  // Ribbon Pin 2
+static constexpr int PIN_KEYPAD_COL_3 = 4;  // Ribbon Pin 1
 
 // ----------------------
 // Měření napětí baterie

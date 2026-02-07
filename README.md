@@ -30,18 +30,17 @@ Následující tabulka ukazuje, jak by měly být piny na ribbon kabelu klávesn
 
 | Klávesnice Ribbon Pin | Funkce (Fyzický sloupec/řádek) | ESP32 GPIO |
 | :-------------------- | :------------------------------ | :--------- |
-| Pin 8                 | Řádek 1                         | GPIO 4     |
-| Pin 7                 | Řádek 2                         | GPIO 5     |
-| Pin 6                 | Řádek 3                         | GPIO 6     |
-| Pin 5                 | Řádek 4                         | GPIO 7     |
-| Pin 4                 | Sloupec 1                       | GPIO 19    |
-| Pin 3                 | Sloupec 2                       | GPIO 16    |
-| Pin 2                 | Sloupec 3                       | GPIO 17    |
-| Pin 1                 | Sloupec 4                       | GPIO 15    |
+| Pin 8                 | Řádek 0 (horní)                 | GPIO 19    |
+| Pin 7                 | Řádek 1                         | GPIO 17    |
+| Pin 6                 | Řádek 2                         | GPIO 16    |
+| Pin 5                 | Řádek 3 (spodní)                | GPIO 15    |
+| Pin 4                 | Sloupec 3 (pravý)               | GPIO 7     |
+| Pin 3                 | Sloupec 2                       | GPIO 6     |
+| Pin 2                 | Sloupec 1                       | GPIO 5     |
+| Pin 1                 | Sloupec 0 (levý)                | GPIO 4     |
 
 **Důležité poznámky k funkci klávesnice:**
-*   Vzhledem k vysokému kontaktnímu odporu klávesnice (až 500 Ohmů) je **nutné přidat externí pull-up rezistory** na každý sloupcový pin (tj. na GPIO 19, 16, 17, 15). Doporučená hodnota rezistorů je 1KΩ až 10KΩ. Bez těchto externích rezistorů klávesnice nemusí spolehlivě fungovat.
-*   Piny řádků (GPIO 4-7) jsou nakonfigurovány pro probuzení ESP32 z režimu Deep Sleep.
+*   Piny řádků (GPIO 19, 17, 16, 15) jsou nakonfigurovány pro probuzení ESP32 z režimu Deep Sleep.
 
 ## Konfigurace
 
