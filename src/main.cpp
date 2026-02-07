@@ -225,6 +225,7 @@ static void renderQrScreen(const String& spayd, const String& amountUi) {
 enum class UiState {
   EnterAmount,
   ShowQr,
+  PreparingForDeepSleep, // Nový stav pro čekání před usnutím
 };
 
 static UiState g_state = UiState::EnterAmount;
@@ -232,6 +233,8 @@ static String g_lastSpayd;
 
 // ---------- Deep Sleep ----------
 static unsigned long last_key_press_time = 0;
+static unsigned long deep_sleep_countdown_start_time = 0;
+static const unsigned long DEEP_SLEEP_CLEAN_DURATION = 15000; // 15 sekund
 
 static void goEnter() {
   display.setRotation(1);
@@ -379,8 +382,8 @@ static void onKeyQr(char k) {
   }
 }
 
-static void enterSleepMode() {
-  Serial.println("Performing full refresh and going to deep sleep...");
+static void startDeepSleepCountdown() {
+  Serial.println("Starting deep sleep countdown...");
   
   // 1. Cyklus plného obnovení pro zamezení ghostingu
   display.setFullWindow();
@@ -395,9 +398,9 @@ static void enterSleepMode() {
     display.fillScreen(GxEPD_WHITE);
   } while (display.nextPage());
 
-  // 3. Vypnutí displeje a uspání
-  display.powerOff();
-  esp_deep_sleep_start();
+  // 3. Nastavení stavu a spuštění odpočtu
+  g_state = UiState::PreparingForDeepSleep;
+  deep_sleep_countdown_start_time = millis();
 }
 
 // Nové proměnné pro detekci dlouhého stisku
@@ -406,6 +409,17 @@ static bool is_c_held = false;
 static const unsigned long LONG_PRESS_C_DURATION = 2000; // 2 sekundy
 
 void loop() {
+    // Pokud probíhá odpočet pro deep sleep, ignorujeme vše ostatní
+    if (g_state == UiState::PreparingForDeepSleep) {
+      if (millis() - deep_sleep_countdown_start_time > DEEP_SLEEP_CLEAN_DURATION) {
+        Serial.println("Countdown finished. Going to deep sleep now.");
+        display.powerOff();
+        esp_deep_sleep_start();
+      }
+      delay(100); // Během čekání není potřeba smyčku točit tak rychle
+      return;
+    }
+
     // Nová, event-driven logika klávesnice pro detekci dlouhého stisku
     if (keypad.getKeys()) {
         last_key_press_time = millis(); // Resetujeme časovač nečinnosti při jakékoliv aktivitě klávesnice
@@ -424,7 +438,7 @@ void loop() {
                             hold_c_start_time = millis();
                             is_c_held = true;
                         } else {
-                            // Ostatní klávesy reagují ihned na stisk
+                            // Ostatní klávesy reagují ihned
                             switch (g_state) {
                                 case UiState::EnterAmount: onKeyEnter(k); break;
                                 case UiState::ShowQr: onKeyQr(k); break;
@@ -432,37 +446,29 @@ void loop() {
                         }
                         break;
                     
-                    case HOLD:
-                        if (k == 'C' && is_c_held) {
-                            if (millis() - hold_c_start_time > LONG_PRESS_C_DURATION) {
-                                is_c_held = false; // Zabráníme opakovanému spuštění
-                                enterSleepMode();
-                            }
-                        }
-                        break;
-
                     case RELEASED:
                         if (k == 'C' && is_c_held) {
-                            // Pokud byla klávesa C uvolněna dříve, než uplynul čas pro dlouhý stisk,
-                            // provedeme původní akci (reset).
-                            is_c_held = false;
-                            // Akce pro krátký stisk 'C' je reset
-                            if (g_state == UiState::EnterAmount) {
-                              onKeyEnter('C');
+                            unsigned long press_duration = millis() - hold_c_start_time;
+                            if (press_duration > LONG_PRESS_C_DURATION) {
+                                // Dlouhý stisk
+                                startDeepSleepCountdown();
+                            } else {
+                                // Krátký stisk
+                                if (g_state == UiState::EnterAmount) {
+                                    onKeyEnter('C');
+                                }
                             }
+                            is_c_held = false;
                         }
-                        break;
-                    
-                    case IDLE:
                         break;
                 }
             }
         }
     }
 
-    // Kontrola nečinnosti zůstává
+    // Kontrola nečinnosti (pokud nejsme v procesu vypínání)
     if (g_cfg.ui.sleep_timeout_s > 0 && millis() - last_key_press_time > (unsigned long)g_cfg.ui.sleep_timeout_s * 1000) {
-        enterSleepMode();
+        startDeepSleepCountdown();
     }
   
     delay(10); // Lehce zvýšíme delay pro stabilitu event-driven smyčky

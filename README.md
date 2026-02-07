@@ -95,4 +95,5 @@ Projekt je postaven na [PlatformIO](https://platformio.org/).
 | **`A`**     | Přičtení k mezisoučtu (`+`)  | -                           |
 | **`B`**     | Zobrazení celkového součtu (`=`) | -                           |
 | **`#`**     | Generovat a zobrazit QR kód  | -                           |
+| **`C` (dlouhý stisk)** | Vyčistí displej na bílo a po 15 sekundách uspí zařízení (pro bezpečné vypnutí) | -                           |
 | **`D`**     | -                          | Zpět na zadávání           |
