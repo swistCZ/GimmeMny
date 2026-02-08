@@ -306,11 +306,11 @@ static void goEnter() {
 
 static void goQr() {
   display.setRotation(3); // otočíme o 270° (o 180° víc než základní rotace)
-  int64_t cents = amountToCents();
+  int64_t cents = running_total_cents + amountToCents();
   String spayd = buildSpayd(g_cfg, cents);
   g_lastSpayd = spayd;
   g_state = UiState::ShowQr;
-  renderQrScreen(spayd, formatAmountForUi());
+  renderQrScreen(spayd, formatAmountCz(cents));
 
   Serial.println("SPAYD:");
   Serial.println(spayd);
