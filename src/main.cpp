@@ -2,6 +2,11 @@
 #include <SPI.h>
 #include <LittleFS.h>
 #include <esp_sleep.h> // pro deep sleep
+#include <WiFi.h> // pro vypnutí WiFi
+
+// pro CPU freq
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
 
 #include <Keypad.h>
 #include <qrcode.h>
@@ -70,6 +75,7 @@ static constexpr int ADC_READ_COUNT = 5; // Kolikrát přečíst ADC pro zprům�
 static constexpr float ADC_MAX_VALUE = 4095.0; // 12-bit ADC
 static constexpr float ADC_REFERENCE_MV = 3300.0; // Vnitřní reference ESP32 ADC
 static constexpr float VOLTAGE_DIVIDER_COEFFICIENT = 1.769388; // Z LaskaKit dokumentace
+static int g_last_battery_percentage = -1; // Cache pro poslední hodnotu baterie
 
 static int readBatteryMv() {
   int raw_adc = 0;
@@ -147,6 +153,8 @@ static void updateAmountDisplay() {
 }
 
 static void renderEnterScreen() {
+  g_last_battery_percentage = getBatteryPercentage(); // Aktualizujeme stav baterie
+
   display.setFullWindow();
   display.firstPage();
   do {
@@ -173,7 +181,7 @@ static void renderEnterScreen() {
     // Zobrazení stavu baterie v pravém horním rohu (mělo by fungovat)
     display.setTextSize(1);
     display.setCursor(display.width() - 40, 5);
-    display.print(String(getBatteryPercentage()) + UI_STRINGS::BATTERY_PERCENT_SUFFIX);
+    display.print(String(g_last_battery_percentage) + UI_STRINGS::BATTERY_PERCENT_SUFFIX);
 
     // Hlavní částka - vycentrováno
     display.setTextSize(3);
@@ -195,6 +203,8 @@ static void renderEnterScreen() {
 }
 
 static void renderQrScreen(const String& spayd, const String& amountUi) {
+  g_last_battery_percentage = getBatteryPercentage(); // Aktualizujeme stav baterie
+
   // QR generation
   QRCode qrcode;
 
@@ -258,7 +268,7 @@ static void renderQrScreen(const String& spayd, const String& amountUi) {
           display.setTextSize(1);
           // Reuse 'h' for height, or recalculate if font changes
           display.setCursor(display.width() - 40, y_pos_top_text); // Stejná Y pozice jako částka
-          display.print(String(getBatteryPercentage()) + UI_STRINGS::BATTERY_PERCENT_SUFFIX);
+          display.print(String(g_last_battery_percentage) + UI_STRINGS::BATTERY_PERCENT_SUFFIX);
       
           // Nápověda kláves (D=ZPET) - vycentrováno dole, vertikálně vycentrováno v bottom_margin_y
           display.setTextSize(1);
@@ -317,6 +327,13 @@ static void ensureConfigFile() {
 void setup() {
   Serial.begin(115200);
   delay(200);
+
+  // OPTIM: Snížíme frekvenci CPU
+  setCpuFrequencyMhz(80);
+
+  // OPTIM: Vypnutí WiFi a Bluetooth
+  WiFi.mode(WIFI_OFF);
+  btStop();
 
   // --- FIX: Přidána inicializace pro LaskaKit ESPink ---
   // 1. Zapnutí napájení displeje
@@ -534,5 +551,5 @@ void loop() {
         startDeepSleepCountdown();
     }
   
-    delay(10); // Lehce zvýšíme delay pro stabilitu event-driven smyčky
+    delay(20); // Vráceno pro stabilitu klávesnice, mírně zvýšeno pro úsporu energie
 }
