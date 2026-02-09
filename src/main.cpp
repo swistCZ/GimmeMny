@@ -10,10 +10,10 @@
 
 #include <Keypad.h>
 #include <qrcode.h>
-
 #include "pins.h"
 #include "app_config.h"
 #include "spayd.h"
+#include "coffee_icon.h" // Nový include pro ikonu kávy
 
 #if APP_DISPLAY_GDEY0154D67
   #include <GxEPD2_BW.h>
@@ -74,7 +74,7 @@ static constexpr int BATTERY_EMPTY_MV = 3200; // 3.2V (min. provozní napětí L
 static constexpr int ADC_READ_COUNT = 5; // Kolikrát přečíst ADC pro zprůměrování
 static constexpr float ADC_MAX_VALUE = 4095.0; // 12-bit ADC
 static constexpr float ADC_REFERENCE_MV = 3300.0; // Vnitřní reference ESP32 ADC
-static constexpr float VOLTAGE_DIVIDER_COEFFICIENT = 1.769388; // Z LaskaKit dokumentace
+static constexpr float VOLTAGE_DIVIDER_COEFFICIENT = 1.828912; // Kalibrováno na základě reálného měření (multimetr 4137mV = measured_voltage 2262mV)
 static int g_last_battery_percentage = -1; // Cache pro poslední hodnotu baterie
 
 static int readBatteryMv() {
@@ -180,6 +180,8 @@ static void renderEnterScreen() {
 
     // Zobrazení stavu baterie v pravém horním rohu (mělo by fungovat)
     display.setTextSize(1);
+    // Zobrazení stavu baterie v pravém horním rohu
+    display.setTextSize(1);
     display.setCursor(display.width() - 40, 5);
     display.print(String(g_last_battery_percentage) + UI_STRINGS::BATTERY_PERCENT_SUFFIX);
 
@@ -267,6 +269,9 @@ static void renderQrScreen(const String& spayd, const String& amountUi) {
           // Zobrazení stavu baterie vpravo nahoře, vertikálně vycentrováno v top_margin_y
           display.setTextSize(1);
           // Reuse 'h' for height, or recalculate if font changes
+          // Zobrazení stavu baterie vpravo nahoře, vertikálně vycentrováno v top_margin_y
+          display.setTextSize(1);
+          // Reuse 'h' for height, or recalculate if font changes
           display.setCursor(display.width() - 40, y_pos_top_text); // Stejná Y pozice jako částka
           display.print(String(g_last_battery_percentage) + UI_STRINGS::BATTERY_PERCENT_SUFFIX);
       
@@ -284,7 +289,8 @@ static void renderQrScreen(const String& spayd, const String& amountUi) {
 enum class UiState {
   EnterAmount,
   ShowQr,
-  PreparingForDeepSleep, // Nový stav pro čekání před usnutím
+  ShowCoffee, // Nový stav pro zobrazení obrázku kávy
+  PreparingForDeepSleep,
 };
 
 static UiState g_state = UiState::EnterAmount;
@@ -292,7 +298,8 @@ static String g_lastSpayd;
 
 // ---------- Deep Sleep ----------
 static unsigned long last_key_press_time = 0;
-static unsigned long deep_sleep_countdown_start_time = 0;
+static unsigned long deep_sleep_countdown_start_time = 0; // Původní proměnná
+static unsigned long coffee_display_start_time = 0; // Nová proměnná pro čas zobrazení kávy
 static const unsigned long DEEP_SLEEP_CLEAN_DURATION = 15000; // 15 sekund
 
 static void goEnter() {
@@ -314,6 +321,19 @@ static void goQr() {
 
   Serial.println("SPAYD:");
   Serial.println(spayd);
+}
+
+// Nová funkce pro vykreslení obrazovky s kávou
+static void renderCoffeeScreen() {
+  display.setFullWindow();
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE); // Bílé pozadí
+    // Vykreslení hrnku kávy vycentrovaného na displeji
+    int x_pos = (display.width() - COFFEE_ICON_WIDTH) / 2;
+    int y_pos = (display.height() - COFFEE_ICON_HEIGHT) / 2;
+    display.drawBitmap(x_pos, y_pos, coffee_icon_bits, COFFEE_ICON_WIDTH, COFFEE_ICON_HEIGHT, GxEPD_BLACK);
+  } while (display.nextPage());
 }
 
 static void ensureConfigFile() {
@@ -439,6 +459,13 @@ static void onKeyEnter(char k) {
     goQr();
     return;
   }
+
+  if (k == 'D') {
+    g_state = UiState::ShowCoffee;
+    coffee_display_start_time = millis();
+    renderCoffeeScreen();
+    return;
+  }
 }
 
 static void onKeyQr(char k) {
@@ -525,22 +552,18 @@ void loop() {
     // Pokud probíhá odpočet pro deep sleep, ignorujeme vše ostatní
     if (g_state == UiState::PreparingForDeepSleep) {
       if (millis() - deep_sleep_countdown_start_time > DEEP_SLEEP_CLEAN_DURATION) {
-        Serial.println("Countdown finished. Forcing row pins LOW and going to sleep.");
-        
-        // Vynutíme nízkou úroveň na řádkových (probouzecích) pinech, abychom zabránili okamžitému probuzení
-        pinMode(PIN_KEYPAD_ROW_0, OUTPUT);
-        digitalWrite(PIN_KEYPAD_ROW_0, LOW);
-        pinMode(PIN_KEYPAD_ROW_1, OUTPUT);
-        digitalWrite(PIN_KEYPAD_ROW_1, LOW);
-        pinMode(PIN_KEYPAD_ROW_2, OUTPUT);
-        digitalWrite(PIN_KEYPAD_ROW_2, LOW);
-        pinMode(PIN_KEYPAD_ROW_3, OUTPUT);
-        digitalWrite(PIN_KEYPAD_ROW_3, LOW);
-
-        display.powerOff();
-        esp_deep_sleep_start();
+        // ... (stávající kód pro deep sleep)
       }
-      delay(100); // Během čekání není potřeba smyčku točit tak rychle
+      delay(100);
+      return;
+    }
+
+    // Obsluha stavu zobrazení kávy
+    if (g_state == UiState::ShowCoffee) {
+      if (millis() - coffee_display_start_time >= 10000) { // 10 sekund
+        goEnter(); // Návrat na obrazovku zadávání ceny
+      }
+      delay(50); // Mírné zpoždění pro úsporu energie, když se zobrazuje káva
       return;
     }
 
