@@ -14,6 +14,7 @@
 #include "app_config.h"
 #include "spayd.h"
 #include "coffee_icon.h" // Nový include pro ikonu kávy
+#include <pgmspace.h> // Potřebné pro pgm_read_byte
 
 #if APP_DISPLAY_GDEY0154D67
   #include <GxEPD2_BW.h>
@@ -323,16 +324,48 @@ static void goQr() {
   Serial.println(spayd);
 }
 
-// Nová funkce pro vykreslení obrazovky s kávou
+// Nová funkce pro vykreslení obrazovky s textem "Coffee time!" na dvou řádcích
 static void renderCoffeeScreen() {
   display.setFullWindow();
   display.firstPage();
   do {
-    display.fillScreen(GxEPD_WHITE); // Bílé pozadí
-    // Vykreslení hrnku kávy vycentrovaného na displeji
-    int x_pos = (display.width() - COFFEE_ICON_WIDTH) / 2;
-    int y_pos = (display.height() - COFFEE_ICON_HEIGHT) / 2;
-    display.drawBitmap(x_pos, y_pos, coffee_icon_bits, COFFEE_ICON_WIDTH, COFFEE_ICON_HEIGHT, GxEPD_BLACK);
+    display.fillScreen(GxEPD_WHITE);
+    display.setTextColor(GxEPD_BLACK);
+    
+    const char* line1 = "Coffee";
+    const char* line2 = "time!";
+    display.setTextSize(3); // Nastavíme požadovanou velikost
+
+    int16_t x1_bounds, y1_bounds;
+    uint16_t w1, h1, w2, h2;
+
+    // Zjistíme rozměry pro oba řádky
+    display.getTextBounds(line1, 0, 0, &x1_bounds, &y1_bounds, &w1, &h1);
+    display.getTextBounds(line2, 0, 0, &x1_bounds, &y1_bounds, &w2, &h2);
+
+    // Definujeme mezeru mezi řádky
+    const int16_t line_spacing = 5;
+
+    // Vypočítáme celkovou výšku bloku textu (výška prvního řádku + mezera + výška druhého řádku)
+    const uint16_t total_block_height = h1 + line_spacing + h2;
+
+    // Vypočítáme počáteční Y pozici pro celý blok, aby byl vertikálně vycentrován
+    const int16_t block_start_y = (display.height() - total_block_height) / 2;
+
+    // Umístění prvního řádku (horizontálně vycentrováno, vertikálně na začátku bloku)
+    int16_t x1_pos = (display.width() - w1) / 2;
+    int16_t y1_pos = block_start_y;
+    
+    display.setCursor(x1_pos, y1_pos);
+    display.print(line1);
+
+    // Umístění druhého řádku (horizontálně vycentrováno, vertikálně pod prvním řádkem s mezerou)
+    int16_t x2_pos = (display.width() - w2) / 2;
+    int16_t y2_pos = block_start_y + h1 + line_spacing;
+    
+    display.setCursor(x2_pos, y2_pos);
+    display.print(line2);
+
   } while (display.nextPage());
 }
 
