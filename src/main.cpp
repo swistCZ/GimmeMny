@@ -460,12 +460,7 @@ static void onKeyEnter(char k) {
     return;
   }
 
-  if (k == 'D') {
-    g_state = UiState::ShowCoffee;
-    coffee_display_start_time = millis();
-    renderCoffeeScreen();
-    return;
-  }
+
 }
 
 static void onKeyQr(char k) {
@@ -501,6 +496,11 @@ static unsigned long hold_c_start_time = 0;
 static bool is_c_held = false;
 static const unsigned long LONG_PRESS_C_DURATION = 2000; // 2 sekundy
 
+// Nové proměnné pro detekci dlouhého stisku klávesy D
+static unsigned long hold_d_start_time = 0;
+static bool is_d_held = false;
+static const unsigned long LONG_PRESS_D_DURATION = 2000; // 2 sekundy
+
 static void handleKeypad() {
     if (keypad.getKeys()) {
         last_key_press_time = millis(); // Resetujeme časovač nečinnosti při jakékoliv aktivitě klávesnice
@@ -518,8 +518,18 @@ static void handleKeypad() {
                         if (k == 'C') {
                             hold_c_start_time = millis();
                             is_c_held = true;
+                        } else if (k == 'D') {
+                            // Chování 'D' závisí na aktuálním stavu UI
+                            if (g_state == UiState::EnterAmount) {
+                                // V režimu zadávání částky budeme čekat na dlouhý stisk
+                                hold_d_start_time = millis();
+                                is_d_held = true;
+                            } else if (g_state == UiState::ShowQr) {
+                                // V režimu QR kódu reagujeme okamžitě
+                                onKeyQr(k);
+                            }
                         } else {
-                            // Ostatní klávesy reagují ihned
+                            // Ostatní klávesy reagují ihned podle stavu
                             switch (g_state) {
                                 case UiState::EnterAmount: onKeyEnter(k); break;
                                 case UiState::ShowQr: onKeyQr(k); break;
@@ -531,15 +541,24 @@ static void handleKeypad() {
                         if (k == 'C' && is_c_held) {
                             unsigned long press_duration = millis() - hold_c_start_time;
                             if (press_duration > LONG_PRESS_C_DURATION) {
-                                // Dlouhý stisk
+                                // Dlouhý stisk C
                                 startDeepSleepCountdown();
                             } else {
-                                // Krátký stisk
+                                // Krátký stisk C
                                 if (g_state == UiState::EnterAmount) {
                                     onKeyEnter('C');
                                 }
                             }
                             is_c_held = false;
+                        } else if (k == 'D' && is_d_held) {
+                            // Vyhodnocení dlouhého stisku D (relevantní pouze pokud bylo zahájeno v EnterAmount)
+                            unsigned long press_duration = millis() - hold_d_start_time;
+                            if (g_state == UiState::EnterAmount && press_duration > LONG_PRESS_D_DURATION) {
+                                g_state = UiState::ShowCoffee;
+                                coffee_display_start_time = millis();
+                                renderCoffeeScreen();
+                            }
+                            is_d_held = false;
                         }
                         break;
                 }
@@ -560,7 +579,7 @@ void loop() {
 
     // Obsluha stavu zobrazení kávy
     if (g_state == UiState::ShowCoffee) {
-      if (millis() - coffee_display_start_time >= 10000) { // 10 sekund
+      if (millis() - coffee_display_start_time >= 3000) { // 3 sekundy
         goEnter(); // Návrat na obrazovku zadávání ceny
       }
       delay(50); // Mírné zpoždění pro úsporu energie, když se zobrazuje káva
