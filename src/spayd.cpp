@@ -114,5 +114,8 @@ String buildSpayd(const AppConfig& cfg, int64_t amountCents) {
     appendField(s, "MSG", percentEncodeUtf8(msg));
   }
 
+  // SPAYD standard vyžaduje, aby každá hodnota (i ta poslední) byla zakončena hvězdičkou
+  s += '*';
+
   return s;
 }
