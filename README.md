@@ -50,7 +50,7 @@ Veškeré nastavení se provádí v souboru `data/config.ini`. Po úpravě je nu
 ```ini
 [payment]
 # IBAN účtu příjemce
-acc_iban=CZ5855000000001265098001
+acc_iban=CZ1903000000000251075031
 # Měna (CZK)
 cc=CZK
 # Zpráva pro příjemce
