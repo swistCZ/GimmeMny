@@ -32,6 +32,8 @@ static void applyKeyValue(AppConfig& cfg, const String& section, const String& k
     if (k == "title") cfg.ui.title = value;
     else if (k == "translit") cfg.ui.translit = (value == "1" || value == "true" || value == "yes");
     else if (k == "sleep_timeout_s") cfg.ui.sleep_timeout_s = value.toInt();
+    else if (k == "goodbye_line1") cfg.ui.goodbye_line1 = value;
+    else if (k == "goodbye_line2") cfg.ui.goodbye_line2 = value;
   } else if (sec == "power") {
     if (k == "display_charge_status_enabled") cfg.power.display_charge_status_enabled = (value == "1" || value == "true" || value == "yes");
   }
@@ -51,6 +53,8 @@ AppConfig defaultConfig() {
   cfg.ui.title = "GimmeMny";
   cfg.ui.translit = true;
   cfg.ui.sleep_timeout_s = 150;
+  cfg.ui.goodbye_line1 = "Vypni mne,";
+  cfg.ui.goodbye_line2 = "zapni mne.";
 
   cfg.power.display_charge_status_enabled = true; // Výchozí hodnota je true
 
@@ -120,6 +124,8 @@ bool saveConfigToFs(const AppConfig& cfg) {
   writeKV(f, "title", cfg.ui.title);
   writeKV(f, "translit", cfg.ui.translit ? "true" : "false");
   writeKV(f, "sleep_timeout_s", String(cfg.ui.sleep_timeout_s));
+  writeKV(f, "goodbye_line1", cfg.ui.goodbye_line1);
+  writeKV(f, "goodbye_line2", cfg.ui.goodbye_line2);
   f.println();
 
   f.println("[power]");
@@ -142,6 +148,8 @@ void printConfig(const AppConfig& cfg, Stream& out) {
   out.print("title="); out.println(cfg.ui.title);
   out.print("translit="); out.println(cfg.ui.translit ? "true" : "false");
   out.print("sleep_timeout_s="); out.println(cfg.ui.sleep_timeout_s);
+  out.print("goodbye_line1="); out.println(cfg.ui.goodbye_line1);
+  out.print("goodbye_line2="); out.println(cfg.ui.goodbye_line2);
   out.print("display_charge_status_enabled="); out.println(cfg.power.display_charge_status_enabled ? "true" : "false");
   out.println("--------------");
 }

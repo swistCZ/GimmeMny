@@ -20,6 +20,8 @@ struct UiConfig {
   String title;      // text nahoře
   bool translit;     // převod diakritiky v MSG/RN do ASCII
   int sleep_timeout_s; // časovač pro deep sleep v sekundách
+  String goodbye_line1; // První řádek textu před deep sleep
+  String goodbye_line2; // Druhý řádek textu před deep sleep
 };
 
 struct PowerConfig {
@@ -54,7 +56,7 @@ namespace UI_STRINGS {
   constexpr const char* DEFAULT_CURRENCY = "CZK";
 
   constexpr const char* CHARGING_TEXT = "Nabijim...";
-  constexpr const char* CHARGED_TEXT = "Nabito";
+  constexpr const char* CHARGED_TEXT = "Baterie OK";
   constexpr const char* WARNING_NOT_CHARGING_TEXT = "VAROVANI: Nenabijim!";
 }
 

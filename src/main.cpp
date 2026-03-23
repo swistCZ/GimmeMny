@@ -186,6 +186,17 @@ static void renderEnterScreen() {
     display.setCursor(display.width() - 40, 5);
     display.print(String(g_last_battery_percentage) + UI_STRINGS::BATTERY_PERCENT_SUFFIX);
 
+    // Zobrazení malého stavu nabíjení, pokud je USB připojeno a povoleno v configu
+    if (g_cfg.power.display_charge_status_enabled && g_charging_state != ChargingState::NotConnected) {
+      display.setCursor(5, 5); // Levý horní roh
+      switch (g_charging_state) {
+        case ChargingState::Charging: display.print(UI_STRINGS::CHARGING_TEXT); break;
+        case ChargingState::Charged: display.print(UI_STRINGS::CHARGED_TEXT); break;
+        case ChargingState::WarningNotCharging: display.print(UI_STRINGS::WARNING_NOT_CHARGING_TEXT); break;
+        default: break;
+      }
+    }
+
     // Hlavní částka - vycentrováno
     display.setTextSize(3);
     String amountStr = formatAmountForUi() + " " + (g_cfg.pay.cc.length() ? g_cfg.pay.cc : UI_STRINGS::DEFAULT_CURRENCY);
@@ -275,6 +286,17 @@ static void renderQrScreen(const String& spayd, const String& amountUi) {
           // Reuse 'h' for height, or recalculate if font changes
           display.setCursor(display.width() - 40, y_pos_top_text); // Stejná Y pozice jako částka
           display.print(String(g_last_battery_percentage) + UI_STRINGS::BATTERY_PERCENT_SUFFIX);
+
+          // Zobrazení malého stavu nabíjení, pokud je USB připojeno a povoleno v configu
+          if (g_cfg.power.display_charge_status_enabled && g_charging_state != ChargingState::NotConnected) {
+            display.setCursor(5, y_pos_top_text); // Levý horní roh, stejná Y pozice jako částka
+            switch (g_charging_state) {
+              case ChargingState::Charging: display.print(UI_STRINGS::CHARGING_TEXT); break;
+              case ChargingState::Charged: display.print(UI_STRINGS::CHARGED_TEXT); break;
+              case ChargingState::WarningNotCharging: display.print(UI_STRINGS::WARNING_NOT_CHARGING_TEXT); break;
+              default: break;
+            }
+          }
       
           // Nápověda kláves (D=ZPET) - vycentrováno dole, vertikálně vycentrováno v bottom_margin_y
           display.setTextSize(1);
@@ -291,9 +313,7 @@ enum class UiState {
   EnterAmount,
   ShowQr,
   ShowCoffee, // Nový stav pro zobrazení obrázku kávy
-  Charging,
-  Charged,
-  WarningNotCharging,
+  WarningScreenCharging, // Nový stav pro celoobrazovkové varování nabíjení
   PreparingForDeepSleep,
 };
 
@@ -304,6 +324,8 @@ static ChargingState g_charging_state = ChargingState::Unknown; // Nová globál
 // Pomocné proměnné pro správu stavů nabíjení a UI
 static unsigned long last_charge_status_update_time = 0; // Kdy naposledy byl aktualizován stav nabíjení na displeji
 static const unsigned long CHARGE_STATUS_UPDATE_INTERVAL_MS = 10000; // 10 sekund pro aktualizaci, pokud je stav stejný
+static unsigned long warning_screen_start_time = 0; // Čas zahájení celoobrazovkového varování
+static const unsigned long WARNING_SCREEN_DURATION_MS = 5000; // Doba trvání celoobrazovkového varování (5 sekund)
 
 // ------ Power Management (nové) ------
 enum class ChargingState {
@@ -328,6 +350,79 @@ static ChargingState detectChargingState() {
       // USB připojeno, baterie není odpojená, ale CHG_STAT není LOW (tj. nabíjení skončilo nebo neprobíhá aktivně)
       return ChargingState::Charged;
     }
+  } else {
+    return ChargingState::NotConnected;
+  }
+}
+
+// Nová funkce pro vykreslení celoobrazovkového varování
+static void renderWarningScreen(const char* text) {
+  g_last_battery_percentage = getBatteryPercentage(); // Aktualizujeme stav baterie
+
+  display.setFullWindow();
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE);
+    display.setTextColor(GxEPD_BLACK);
+
+    // Zobrazení textu uprostřed
+    display.setTextSize(2);
+    int16_t x1, y1;
+    uint16_t w, h;
+    display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+    display.setCursor((display.width() - w) / 2, (display.height() - h) / 2);
+    display.print(text);
+
+    // Zobrazení stavu baterie v pravém horním rohu
+    display.setTextSize(1);
+    display.setCursor(display.width() - 40, 5);
+    display.print(String(g_last_battery_percentage) + UI_STRINGS::BATTERY_PERCENT_SUFFIX);
+
+  } while (display.nextPage());
+}
+
+// Tato funkce bude volána pokaždé, když se změní stav nabíjení nebo při periodické aktualizaci
+static void updatePowerUi(ChargingState new_charging_state) {
+  if (!g_cfg.power.display_charge_status_enabled) {
+    // Pokud je zobrazení stavu nabíjení zakázáno, neděláme nic
+    return;
+  }
+
+  // Pokud USB není připojeno, vrátíme se na EnterAmount, pokud jsme ve stavu nabíjení/varování
+  if (new_charging_state == ChargingState::NotConnected) {
+    if (g_state == UiState::WarningScreenCharging) { // Pouze pro celoobrazovkové varování
+      goEnter();
+    }
+    g_charging_state = new_charging_state; // Aktualizujeme globální stav
+    return; // V normálním stavu na baterii dál nic neupravujeme
+  }
+
+  // Pokud jsme již ve stavu DeepSleep countdown, neměli bychom aktualizovat UI.
+  if (g_state == UiState::PreparingForDeepSleep) {
+    return;
+  }
+
+  // Logika pro celoobrazovkové varování "VAROVANI: Nenabijim!"
+  if (new_charging_state == ChargingState::WarningNotCharging && g_state != UiState::WarningScreenCharging) {
+    g_state = UiState::WarningScreenCharging;
+    renderWarningScreen(UI_STRINGS::WARNING_NOT_CHARGING_TEXT);
+    warning_screen_start_time = millis();
+    g_charging_state = new_charging_state; // Aktualizujeme globální stav
+    return; // Po zobrazení varování se vrátíme
+  } else if (g_state == UiState::WarningScreenCharging) {
+      // Pokud jsme ve stavu varování, ale USB se opravilo, nebo uplynul čas, vrátíme se do EnterAmount
+      if (new_charging_state != ChargingState::WarningNotCharging || (millis() - warning_screen_start_time > WARNING_SCREEN_DURATION_MS)) {
+          goEnter(); // Návrat do normálního UI
+      }
+      g_charging_state = new_charging_state; // Aktualizujeme globální stav i zde
+      return; // Zůstaneme ve varovném stavu, dokud čas nevyprší nebo se stav nezlepší
+  }
+
+  // Pokud jsme v běžném UI stavu (EnterAmount, ShowQr, ShowCoffee), aktualizujeme pouze g_charging_state
+  // O zbytek (zobrazení malého textu) se postará renderEnterScreen/renderQrScreen
+  g_charging_state = new_charging_state;
+  last_charge_status_update_time = millis(); // Aktualizujeme čas poslední UI aktualizace
+}
   } else {
     return ChargingState::NotConnected;
   }
@@ -560,6 +655,55 @@ static void goToDeepSleep() {
   esp_deep_sleep_start(); // Jdeme spát
 }
 
+// Nová funkce pro vykreslení "Vypni mne, zapni mne."
+static void renderGoodbyeScreen() {
+  display.setFullWindow();
+  display.firstPage();
+  do {
+    // Cyklus černá -> bílá pro optimalizaci životnosti E-inku
+    display.fillScreen(GxEPD_BLACK);
+  } while (display.nextPage());
+
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE);
+    display.setTextColor(GxEPD_BLACK);
+
+    display.setTextSize(2);
+
+    int16_t x1_bounds, y1_bounds;
+    uint16_t w1, h1, w2, h2;
+
+    // Zjistíme rozměry pro oba řádky z configu
+    display.getTextBounds(g_cfg.ui.goodbye_line1, 0, 0, &x1_bounds, &y1_bounds, &w1, &h1);
+    display.getTextBounds(g_cfg.ui.goodbye_line2, 0, 0, &x1_bounds, &y1_bounds, &w2, &h2);
+
+    // Definujeme mezeru mezi řádky
+    const int16_t line_spacing = 5;
+
+    // Vypočítáme celkovou výšku bloku textu
+    const uint16_t total_block_height = h1 + line_spacing + h2;
+
+    // Vypočítáme počáteční Y pozici pro celý blok, aby byl vertikálně vycentrován
+    const int16_t block_start_y = (display.height() - total_block_height) / 2;
+
+    // Umístění prvního řádku (horizontálně vycentrováno, vertikálně na začátku bloku)
+    int16_t x1_pos = (display.width() - w1) / 2;
+    int16_t y1_pos = block_start_y;
+    
+    display.setCursor(x1_pos, y1_pos);
+    display.print(g_cfg.ui.goodbye_line1);
+
+    // Umístění druhého řádku (horizontálně vycentrováno, vertikálně pod prvním řádkem s mezerou)
+    int16_t x2_pos = (display.width() - w2) / 2;
+    int16_t y2_pos = block_start_y + h1 + line_spacing;
+    
+    display.setCursor(x2_pos, y2_pos);
+    display.print(g_cfg.ui.goodbye_line2);
+
+  } while (display.nextPage());
+}
+
 static void onKeyEnter(char k) {
   if (k >= '0' && k <= '9') {
     // Pokud jsme právě zobrazili výsledek, začneme zadávat nové číslo
@@ -632,20 +776,8 @@ static void onKeyQr(char k) {
 static void startDeepSleepCountdown() {
   Serial.println("Starting deep sleep countdown...");
   
-  // 1. Cyklus plného obnovení pro zamezení ghostingu
-  display.setFullWindow();
-  display.firstPage();
-  do {
-    display.fillScreen(GxEPD_BLACK);
-  } while (display.nextPage());
-  
-  // 2. Vyčištění obrazovky na bílou pro "čistý" stav
-  display.firstPage();
-  do {
-    display.fillScreen(GxEPD_WHITE);
-  } while (display.nextPage());
+  renderGoodbyeScreen(); // Zobrazíme goodbye zprávu s full refresh cyklem
 
-  // 3. Nastavení stavu a spuštění odpočtu
   g_state = UiState::PreparingForDeepSleep;
   deep_sleep_countdown_start_time = millis();
 }
@@ -742,6 +874,14 @@ void loop() {
         goEnter(); // Návrat na obrazovku zadávání ceny
       }
       delay(50); // Mírné zpoždění pro úsporu energie, když se zobrazuje káva
+      return;
+    }
+
+    if (g_state == UiState::WarningScreenCharging) {
+      if (millis() - warning_screen_start_time > WARNING_SCREEN_DURATION_MS) {
+        goEnter(); // Návrat do normálního UI po uplynutí varování
+      }
+      delay(50); // Mírné zpoždění pro úsporu energie
       return;
     }
 
