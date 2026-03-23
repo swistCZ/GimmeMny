@@ -32,6 +32,8 @@ static void applyKeyValue(AppConfig& cfg, const String& section, const String& k
     if (k == "title") cfg.ui.title = value;
     else if (k == "translit") cfg.ui.translit = (value == "1" || value == "true" || value == "yes");
     else if (k == "sleep_timeout_s") cfg.ui.sleep_timeout_s = value.toInt();
+  } else if (sec == "power") {
+    if (k == "display_charge_status_enabled") cfg.power.display_charge_status_enabled = (value == "1" || value == "true" || value == "yes");
   }
 }
 
@@ -49,6 +51,8 @@ AppConfig defaultConfig() {
   cfg.ui.title = "GimmeMny";
   cfg.ui.translit = true;
   cfg.ui.sleep_timeout_s = 150;
+
+  cfg.power.display_charge_status_enabled = true; // Výchozí hodnota je true
 
   return cfg;
 }
@@ -116,6 +120,10 @@ bool saveConfigToFs(const AppConfig& cfg) {
   writeKV(f, "title", cfg.ui.title);
   writeKV(f, "translit", cfg.ui.translit ? "true" : "false");
   writeKV(f, "sleep_timeout_s", String(cfg.ui.sleep_timeout_s));
+  f.println();
+
+  f.println("[power]");
+  writeKV(f, "display_charge_status_enabled", cfg.power.display_charge_status_enabled ? "true" : "false");
 
   f.close();
   return true;
@@ -134,5 +142,6 @@ void printConfig(const AppConfig& cfg, Stream& out) {
   out.print("title="); out.println(cfg.ui.title);
   out.print("translit="); out.println(cfg.ui.translit ? "true" : "false");
   out.print("sleep_timeout_s="); out.println(cfg.ui.sleep_timeout_s);
+  out.print("display_charge_status_enabled="); out.println(cfg.power.display_charge_status_enabled ? "true" : "false");
   out.println("--------------");
 }

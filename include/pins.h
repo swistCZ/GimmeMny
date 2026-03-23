@@ -54,3 +54,11 @@ static constexpr int PIN_KEYPAD_COL_3 = 4;  // Ribbon Pin 1
 // v2.7 používá GPIO34
 // Pokud používáš jinou verzi, uprav tento pin.
 static constexpr int PIN_BATTERY_VOLTAGE = 9; // Předpokládáme v3.5
+
+// ----------------------
+// Power Management
+// ----------------------
+// Piny pro detekci USB napájení a stavu nabíjení.
+// GPIO 35 a 34 jsou často volné a vhodné pro digitální vstup.
+static constexpr int PIN_VBUS_SENSE = 35; // Detekce USB napájení (HIGH = USB připojeno)
+static constexpr int PIN_CHG_STAT = 34;   // Stav nabíjení (LOW = aktivní nabíjení, HIGH = nabito/ne-nabíjím)

@@ -22,9 +22,14 @@ struct UiConfig {
   int sleep_timeout_s; // časovač pro deep sleep v sekundách
 };
 
+struct PowerConfig {
+  bool display_charge_status_enabled; // Zobrazovat stavy nabíjení na displeji
+};
+
 struct AppConfig {
   PaymentConfig pay;
   UiConfig ui;
+  PowerConfig power;
 };
 
 AppConfig defaultConfig();
@@ -47,5 +52,9 @@ namespace UI_STRINGS {
   constexpr const char* RUNNING_TOTAL_PREFIX = "Suma: ";
   constexpr const char* BATTERY_PERCENT_SUFFIX = "%";
   constexpr const char* DEFAULT_CURRENCY = "CZK";
+
+  constexpr const char* CHARGING_TEXT = "Nabijim...";
+  constexpr const char* CHARGED_TEXT = "Nabito";
+  constexpr const char* WARNING_NOT_CHARGING_TEXT = "VAROVANI: Nenabijim!";
 }
 

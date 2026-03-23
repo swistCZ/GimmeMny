@@ -291,13 +291,129 @@ enum class UiState {
   EnterAmount,
   ShowQr,
   ShowCoffee, // Nový stav pro zobrazení obrázku kávy
+  Charging,
+  Charged,
+  WarningNotCharging,
   PreparingForDeepSleep,
 };
 
 static UiState g_state = UiState::EnterAmount;
 static String g_lastSpayd;
+static ChargingState g_charging_state = ChargingState::Unknown; // Nová globální proměnná pro stav nabíjení
 
-// ---------- Deep Sleep ----------
+// Pomocné proměnné pro správu stavů nabíjení a UI
+static unsigned long last_charge_status_update_time = 0; // Kdy naposledy byl aktualizován stav nabíjení na displeji
+static const unsigned long CHARGE_STATUS_UPDATE_INTERVAL_MS = 10000; // 10 sekund pro aktualizaci, pokud je stav stejný
+
+// ------ Power Management (nové) ------
+enum class ChargingState {
+  Unknown,          // Výchozí stav
+  Charging,         // USB připojeno + Přepínač zapnut (proud teče do baterie)
+  Charged,          // USB připojeno + Baterie je plná (nebo se už nenabíjí)
+  WarningNotCharging, // USB připojeno + Přepínač vypnut (baterie odpojena)
+  NotConnected      // USB není připojeno (normální provoz na baterii)
+};
+
+static ChargingState detectChargingState() {
+  bool vbus_connected = digitalRead(PIN_VBUS_SENSE) == HIGH;
+  bool chg_stat_low = digitalRead(PIN_CHG_STAT) == LOW; // LOW = aktivní nabíjení
+
+  if (vbus_connected) {
+    int battery_mv = readBatteryMv();
+    if (battery_mv < 500) { // Předpokládáme, že < 0.5V znamená odpojenou baterii (přepínač vypnutý)
+      return ChargingState::WarningNotCharging;
+    } else if (chg_stat_low) {
+      return ChargingState::Charging;
+    } else {
+      // USB připojeno, baterie není odpojená, ale CHG_STAT není LOW (tj. nabíjení skončilo nebo neprobíhá aktivně)
+      return ChargingState::Charged;
+    }
+  } else {
+    return ChargingState::NotConnected;
+  }
+}
+
+static void renderChargingScreen(const char* text) {
+  g_last_battery_percentage = getBatteryPercentage(); // Aktualizujeme stav baterie
+
+  display.setFullWindow();
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE);
+    display.setTextColor(GxEPD_BLACK);
+
+    // Zobrazení textu uprostřed
+    display.setTextSize(2);
+    int16_t x1, y1;
+    uint16_t w, h;
+    display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+    display.setCursor((display.width() - w) / 2, (display.height() - h) / 2);
+    display.print(text);
+
+    // Zobrazení stavu baterie v pravém horním rohu
+    display.setTextSize(1);
+    display.setCursor(display.width() - 40, 5);
+    display.print(String(g_last_battery_percentage) + UI_STRINGS::BATTERY_PERCENT_SUFFIX);
+
+  } while (display.nextPage());
+}
+
+// Tato funkce bude volána pokaždé, když se změní stav nabíjení nebo při periodické aktualizaci
+static void updatePowerUi(ChargingState new_charging_state) {
+  if (!g_cfg.power.display_charge_status_enabled) {
+    // Pokud je zobrazení stavu nabíjení zakázáno, neděláme nic
+    return;
+  }
+
+  if (new_charging_state == ChargingState::NotConnected) {
+    // Pokud USB není připojeno, vrátíme se na EnterAmount, pokud jsme ve stavu nabíjení/varování
+    if (g_state == UiState::Charging || g_state == UiState::Charged || g_state == UiState::WarningNotCharging) {
+      goEnter();
+    }
+    return; // V normálním stavu na baterii dál nic neupravujeme
+  }
+
+  // Pokud jsme ve stavu nabíjení/varování a stav se nezměnil, a ještě neuplynul interval pro aktualizaci, nic neděláme
+  if (g_charging_state == new_charging_state && millis() - last_charge_status_update_time < CHARGE_STATUS_UPDATE_INTERVAL_MS) {
+    return;
+  }
+
+  g_charging_state = new_charging_state;
+  last_charge_status_update_time = millis(); // Aktualizujeme čas poslední UI aktualizace
+
+  // Pokud jsme již ve stavu DeepSleep countdown, neměli bychom aktualizovat UI.
+  if (g_state == UiState::PreparingForDeepSleep) {
+    return;
+  }
+
+  // Překreslení celého displeje při změně kritického stavu
+  switch (g_charging_state) {
+    case ChargingState::Charging:
+      if (g_state != UiState::Charging) {
+        g_state = UiState::Charging;
+        renderChargingScreen(UI_STRINGS::CHARGING_TEXT);
+      }
+      break;
+    case ChargingState::Charged:
+      if (g_state != UiState::Charged) {
+        g_state = UiState::Charged;
+        renderChargingScreen(UI_STRINGS::CHARGED_TEXT);
+      }
+      break;
+    case ChargingState::WarningNotCharging:
+      if (g_state != UiState::WarningNotCharging) {
+        g_state = UiState::WarningNotCharging;
+        renderChargingScreen(UI_STRINGS::WARNING_NOT_CHARGING_TEXT);
+      }
+      break;
+    case ChargingState::NotConnected:
+    case ChargingState::Unknown: // Mělo by být pokryto výše nebo jinde
+      break;
+  }
+
+  // Pro stavy Charging a Charged můžeme dělat partial update baterie, pokud chceme
+  // Nyní děláme full refresh s každou změnou stavu nabíjení.
+}
 static unsigned long last_key_press_time = 0;
 static unsigned long deep_sleep_countdown_start_time = 0; // Původní proměnná
 static unsigned long coffee_display_start_time = 0; // Nová proměnná pro čas zobrazení kávy
@@ -431,7 +547,17 @@ void setup() {
   // Nastavíme počáteční čas pro kontrolu spánku
   last_key_press_time = millis();
 
+  // Inicializace pinů pro power management
+  pinMode(PIN_VBUS_SENSE, INPUT); // USB VBUS sense pin
+  pinMode(PIN_CHG_STAT, INPUT_PULLUP); // Charger status pin (LOW = charging, HIGH = charged/not charging)
+
   goEnter();
+}
+
+static void goToDeepSleep() {
+  Serial.println("Going to deep sleep!");
+  display.powerOff(); // Vypne displej pro úsporu energie
+  esp_deep_sleep_start(); // Jdeme spát
 }
 
 static void onKeyEnter(char k) {
@@ -604,7 +730,7 @@ void loop() {
     // Pokud probíhá odpočet pro deep sleep, ignorujeme vše ostatní
     if (g_state == UiState::PreparingForDeepSleep) {
       if (millis() - deep_sleep_countdown_start_time > DEEP_SLEEP_CLEAN_DURATION) {
-        // ... (stávající kód pro deep sleep)
+        goToDeepSleep();
       }
       delay(100);
       return;
@@ -619,12 +745,32 @@ void loop() {
       return;
     }
 
+    // --- Nová logika pro správu nabíjení ---
+    ChargingState current_charging_state = detectChargingState();
+    updatePowerUi(current_charging_state);
+
+    // Pokud je USB připojeno a zobrazujeme stav nabíjení, nejdeme do Deep Sleep
+    if (current_charging_state == ChargingState::Charging ||
+        current_charging_state == ChargingState::Charged ||
+        current_charging_state == ChargingState::WarningNotCharging) {
+      // Při připojení USB a zobrazení stavu nabíjení budeme aktivní, nebudeme usínat
+      last_key_press_time = millis(); // Resetujeme časovač, abychom nešli spát
+    }
+
     handleKeypad();
 
-    // Kontrola nečinnosti (pokud nejsme v procesu vypínání)
-    if (g_cfg.ui.sleep_timeout_s > 0 && millis() - last_key_press_time > (unsigned long)g_cfg.ui.sleep_timeout_s * 1000) {
+    // Kontrola nečinnosti (pokud nejsme v procesu vypínání a není připojeno USB)
+    if (g_cfg.ui.sleep_timeout_s > 0 && 
+        millis() - last_key_press_time > (unsigned long)g_cfg.ui.sleep_timeout_s * 1000 &&
+        current_charging_state == ChargingState::NotConnected) { // Usínáme jen pokud není připojeno USB
         startDeepSleepCountdown();
     }
   
     delay(20); // Vráceno pro stabilitu klávesnice, mírně zvýšeno pro úsporu energie
+}
+
+static void goToDeepSleep() {
+  Serial.println("Going to deep sleep!");
+  display.powerOff(); // Vypne displej pro úsporu energie
+  esp_deep_sleep_start(); // Jdeme spát
 }
